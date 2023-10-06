@@ -1,4 +1,5 @@
 import cv2
+import imutils
 import numpy as np
 from matplotlib import pyplot as plt
 from scipy import ndimage
@@ -198,3 +199,39 @@ def histogram_adapt(imgpath):
     cv2.imshow("Image", img)
     cv2.waitKey()
     cv2.destroyAllWindows()
+
+def count(imgpath):
+    image = cv2.imread(imgpath)
+    gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+    blur = cv2.GaussianBlur(gray, (11, 11), 0)
+    canny = cv2.Canny(blur, 30, 150, 3)
+    dilated = cv2.dilate(canny, (1, 1), iterations=0)
+    (cnt, hierarchy) = cv2.findContours(dilated.copy(), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
+    rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+    cv2.drawContours(rgb, cnt, -1, (0, 255, 0), 2)
+    text = "{} objetos".format(len(cnt))
+    cv2.putText(rgb, text, (10, 25), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (240, 0, 159), 2)
+    cv2.imshow("Image", rgb)
+    cv2.waitKey()
+    cv2.destroyAllWindows()
+
+
+def noise(imgpath, amount):
+    img = cv2.imread(imgpath, cv2.IMREAD_COLOR)
+    imggray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+
+    num_salt = np.ceil(amount * imggray.size * 0.5)
+    coords = [np.random.randint(0, i - 1, int(num_salt))
+              for i in imggray.shape]
+    imggray[coords[0], coords[1]] = 255
+
+    num_pepper = np.ceil(amount * imggray.size * 0.5)
+    coords = [np.random.randint(0, i - 1, int(num_pepper))
+              for i in imggray.shape]
+    imggray[coords[0], coords[1]] = 0
+    cv2.imshow("Original", img)
+    cv2.imshow("Salt and Pepper", imggray)
+
+    cv2.waitKey()
+    cv2.destroyAllWindows()
+
