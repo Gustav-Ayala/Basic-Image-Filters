@@ -1,5 +1,6 @@
 import cv2
 import numpy as np
+from matplotlib import pyplot as plt
 from scipy import ndimage
 
 
@@ -14,8 +15,8 @@ def hipass_basic(imgpath):
 
 def highboost(imgpath, boost_factor):
     img = cv2.imread(imgpath)
-    hipass = img - cv2.GaussianBlur(img, (7, 7), 3)+127
-    hiboost = cv2.addWeighted(img, boost_factor, hipass, -1, 0)
+    hipass = img - cv2.blur(img, (7, 7))+127
+    hiboost = cv2.addWeighted(img, boost_factor+1, hipass, -boost_factor, 0)
     cv2.imshow("Original", img)
     cv2.imshow("Alto Reforço", hiboost)
     cv2.waitKey(0)
@@ -103,12 +104,12 @@ def canny(imgpath, low_thr, hi_thr):
     cv2.destroyAllWindows()
 
 
-def sobel(imgpath):
+def sobel(imgpath, kernel):
     img = cv2.imread(imgpath)
     gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
     img_gaussian = cv2.GaussianBlur(gray, (3, 3), 0)
-    img_sobelx = cv2.Sobel(img_gaussian, cv2.CV_8U, 1, 0, ksize=5)
-    img_sobely = cv2.Sobel(img_gaussian, cv2.CV_8U, 0, 1, ksize=5)
+    img_sobelx = cv2.Sobel(img_gaussian, cv2.CV_8U, 1, 0, ksize=kernel)
+    img_sobely = cv2.Sobel(img_gaussian, cv2.CV_8U, 0, 1, ksize=kernel)
     img_sobel = img_sobelx + img_sobely
     cv2.imshow("Original", img)
     cv2.imshow("Sobel", img_sobel)
@@ -120,10 +121,80 @@ def log(imgpath, kernel):
     image = cv2.imread(imgpath, cv2.IMREAD_COLOR)
     image = cv2.GaussianBlur(image, (3, 3), 0)
     image_gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-    filtered_image = cv2.Laplacian(image_gray, cv2.CV_16S, ksize=kernel)
-    # Plot the original and filtered images
+    log = cv2.Laplacian(image_gray, cv2.CV_16S, ksize=kernel)
     cv2.imshow("Original", image)
-    cv2.imshow("LoG", filtered_image)
+    cv2.imshow("LoG", log)
+    cv2.waitKey()
+    cv2.destroyAllWindows()
+    return log
+
+
+def zerocross(imgpath, kernel):
+    img = cv2.imread(imgpath, cv2.IMREAD_COLOR)
+    imgblur = cv2.GaussianBlur(img, (3, 3), 0)
+    imggray = cv2.cvtColor(imgblur, cv2.COLOR_BGR2GRAY)
+    log = cv2.Laplacian(imggray, cv2.CV_16S, ksize=kernel)
+    mat = np.zeros(log.shape)
+
+    for i in range(0, log.shape[0] - 1):
+        for j in range(0, log.shape[1] - 1):
+            if log[i][j] > 0:
+                if log[i + 1][j] < 0 or log[i + 1][j + 1] < 0 or log[i][j + 1] < 0:
+                    mat[i, j] = 1
+            elif log[i][j] < 0:
+                if log[i + 1][j] > 0 or log[i + 1][j + 1] > 0 or log[i][j + 1] > 0:
+                    mat[i, j] = 1
+    cv2.imshow("Zerocross", mat)
+    cv2.imshow("Original", img)
+    cv2.waitKey()
+    cv2.destroyAllWindows()
+def watershed(imgpath):
+    img = cv2.imread(imgpath, cv2.IMREAD_COLOR)
+    originalimg = cv2.imread(imgpath, cv2.IMREAD_COLOR)
+    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    ret, thresh = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)
+
+    kernel = np.ones((3, 3), np.uint8)
+    opening = cv2.morphologyEx(thresh, cv2.MORPH_OPEN, kernel, iterations=2)
+
+    sure_bg = cv2.dilate(opening, kernel, iterations=3)
+
+    dist_transform = cv2.distanceTransform(opening, cv2.DIST_L2, 5)
+    ret, sure_fg = cv2.threshold(dist_transform, 0.7 * dist_transform.max(), 255, 0)
+
+    sure_fg = np.uint8(sure_fg)
+    unknown = cv2.subtract(sure_bg, sure_fg)
+
+    ret, markers = cv2.connectedComponents(sure_fg)
+    markers = markers + 1
+    markers[unknown == 255] = 0
+
+    cv2.watershed(img, markers)
+    img[markers == -1] = [0, 0, 255]
+    cv2.imshow("Original", originalimg)
+    cv2.imshow("Watershed", img)
     cv2.waitKey()
     cv2.destroyAllWindows()
 
+
+def histogram(imgpath):
+    img = cv2.imread(imgpath, cv2.IMREAD_COLOR)
+    imggray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+
+    hist = cv2.calcHist([imggray], [0], None, [256], [0,256])
+
+    plt.bar(range(256), hist.ravel(), width=1, color='magenta')
+    plt.title('Histograma da Imagem (Grayscale)')
+    plt.xlabel('Intensidade')
+    plt.ylabel('Frequência')
+    plt.show()
+    cv2.imshow("Image", img)
+    cv2.waitKey()
+    cv2.destroyAllWindows()
+
+def histogram_adapt(imgpath):
+    img = cv2.imread(imgpath, cv2.IMREAD_GRAYSCALE)
+    img = cv2.equalizeHist(img)
+    cv2.imshow("Image", img)
+    cv2.waitKey()
+    cv2.destroyAllWindows()
